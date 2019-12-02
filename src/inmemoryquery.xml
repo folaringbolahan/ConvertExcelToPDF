@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <comment>Queries</comment>
+    <entry key="equity.full.list">
+        Select e1.comp_acct_id as [ACCOUNT NO], sum(e1.units_buy_sell) as [HOLDINGS], h.last_name + ' ' +  h.first_name + ' ' + h.middle_name as [FULL NAME], 
+        ISNULL(h.chn, '') as [CHN], 
+        ISNULL(r.address_line_1, '') + ' ' + ISNULL(r.address_line_2, '') + ' ' + ISNULL(r.address_line_3, '') + ' ' + ISNULL(r.address_line_4, '') + ' ' + ISNULL(r.state, '') + ' ' + ISNULL(r.country, '') as [ADDRESS] 
+        from EQUITY_TRANSACTION e1 inner join HOLDER_COMPANY_ACCOUNT hca on e1.comp_acct_id = hca.id and e1.company_id = hca.client_Company_Id 
+        inner join Holder h ON hca.holder_id = h.id 
+        left JOIN HOLDER_RESIDENTIAL_ADDRESS r ON hca.pry_res_id = r.id 
+        where e1.transaction_date &lt;= ? and e1.company_id = ? 
+        group by e1.comp_acct_id, h.last_name, h.first_name, h.middle_name, hca.total_share_units, h.chn, hca.old_acct_number, r.address_line_1, r.address_line_2, r.address_line_3, r.address_line_4, r.state, r.country 
+        having sum(e1.units_buy_sell) &gt; 0 
+        order by e1.comp_acct_id
+    </entry>
+    <entry key="mutual.full.list">
+        SELECT ma.id AS [CLIENT NUMBER], ma.last_name + ' ' + ma.middle_name + ' ' + ma.first_name AS [FULL NAME], sum(units_buy_sell) AS [HOLDING],
+        ISNULL(ma.address_line_1, '') + ' ' +
+        ISNULL(ma.address_line_2, '') + ' ' + 
+        ISNULL(ma.address_line_3, '') + ' ' + 
+        ISNULL(ma.address_line_4, '') + ' ' + 
+        ISNULL(ma.state, '') + ' ' + 
+        ISNULL(ma.country, '') AS [ADDRESS]
+        FROM MUTUAL_FUND_TRANSACTION e1, MUTUAL_FUND_ACCOUNT ma
+        WHERE e1.mutual_fund_acct_id = ma.id
+        AND e1.mutual_fund_id = ?
+        AND e1.transaction_date &lt;= ?
+        GROUP BY ma.id, ma.last_name, ma.middle_name, ma.first_name, ma.address_line_1, ma.address_line_2, 
+        ma.address_line_3, ma.address_line_4, ma.state, ma.country
+        HAVING SUM(units_buy_sell) &gt; 0
+        ORDER BY ma.id ASC
+    </entry>
+    <entry key="equity.structure">
+        select t.type 'HOLDER TYPE', COUNT(DISTINCT(e1.comp_acct_id)) AS [NO OF SHAREHOLDERS], sum(e1.units_buy_sell) AS [HOLDINGS]
+        from EQUITY_TRANSACTION e1 join HOLDER_COMPANY_ACCOUNT hca ON e1.comp_acct_id = hca.id 
+        JOIN HOLDER h ON hca.holder_id = h.id 
+        JOIN HOLDER_TYPE t ON h.type_id = t.id AND e1.company_id = hca.client_Company_Id 
+        WHERE e1.transaction_date &lt;= ? 
+        AND hca.client_Company_Id = ? 
+        AND hca.pry_acct = 1
+        GROUP BY t.type 
+        HAVING SUM(e1.units_buy_sell) &gt; 0 
+        ORDER BY t.type
+    </entry>
+    <entry key="mutual.structure">
+        SELECT t.type AS [HOLDER TYPE], COUNT(DISTINCT(ma.id)) AS [NO OF INVESTORS], SUM(mt.units_buy_sell) AS [HOLDINGS]
+        FROM MUTUAL_FUND_TRANSACTION mt JOIN MUTUAL_FUND_ACCOUNT ma ON mt.mutual_fund_acct_id = ma.id 
+        JOIN HOLDER_TYPE t ON ma.type_id = t.id 
+        WHERE mt.transaction_date &lt;= ? 
+        AND mt.mutual_fund_id = ?
+        GROUP BY t.type 
+        HAVING SUM(mt.units_buy_sell) &gt; 0 
+        ORDER BY t.type
+    </entry>
+    <entry key="equity.emailList.perRegister">
+        SELECT hca.id AS [ACCOUNT NO], ISNULL(h.last_name, '') + ' '+ ISNULL(h.first_name, '') + ' '+ ISNULL(h.middle_name, '') AS [NAME], 
+        ISNULL(em.email_address, '') AS [EMAIL], hca.total_share_units AS [HOLDING],
+        ISNULL(r.address_line_1, '') + ' '+ ISNULL(r.address_line_2, '') + ' '+ ISNULL(r.address_line_3, '') +' '+ISNULL(r.city, '') +' '+ ISNULL(r.state, '') +' '+ ISNULL(r.country, '') AS [ADDRESS]
+        FROM Holder h join HOLDER_COMPANY_ACCOUNT hca
+        ON hca.holder_id = h.id
+        LEFT JOIN HOLDER_RESIDENTIAL_ADDRESS r
+        ON r.id = hca.pry_res_id
+        AND r.holder_id = hca.holder_id
+        RIGHT JOIN HOLDER_EMAIL_ADDRESS em
+        ON em.holder_id = h.id
+        AND em.holder_id = hca.holder_id
+        AND em.client_company_id = hca.client_Company_Id
+        WHERE hca.client_company_id = ?
+        AND (em.email_address IS NOT NULL AND em.email_address != '')
+        AND hca.total_share_units &gt; 0
+    </entry>
+    <entry key="mutual.emailList.perRegister">
+        SELECT mfa.id AS [INVESTOR NO], ISNULL(mfa.last_name, '') + ' '+ ISNULL(mfa.first_name, '') + ' '+ ISNULL(mfa.middle_name, '') AS [NAME], 
+        ISNULL(mfa.email, '') AS [EMAIL], mfa.units AS [HOLDING],
+        ISNULL(mfa.address_line_1, '') + ' '+ ISNULL(mfa.address_line_2, '') + ' '+ ISNULL(mfa.address_line_3, '') +' '+ISNULL(mfa.city, '') +' ' 
+        + ISNULL(mfa.state, '') +' '+ ISNULL(mfa.country, '') AS [ADDRESS]
+        FROM MUTUAL_FUND_ACCOUNT mfa JOIN CLIENT_COMPANY cc
+        ON mfa.mutual_fund_id = cc.id
+        WHERE cc.id = ?
+        AND (mfa.email IS NOT NULL AND mfa.email != '')
+        AND mfa.units &gt; 0
+    </entry>
+    <entry key="equity.emailCount.perRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER], COUNT(*) AS [PHONE COUNTED NUMBER], SUM(hca.total_share_units) as [HOLDING SUMMATION]
+        FROM Holder h join HOLDER_COMPANY_ACCOUNT hca
+        ON hca.holder_id = h.id
+        LEFT JOIN HOLDER_RESIDENTIAL_ADDRESS r
+        ON r.id = hca.pry_res_id
+        AND r.holder_id = hca.holder_id
+        RIGHT JOIN HOLDER_EMAIL_ADDRESS em
+        ON em.holder_id = h.id
+        AND em.holder_id = hca.holder_id
+        AND em.client_company_id = hca.client_Company_Id
+        JOIN CLIENT_COMPANY cc
+        ON cc.id = hca.client_Company_Id
+        AND cc.id = em.client_company_id
+        WHERE hca.client_company_id = ?
+        AND (em.email_address IS NOT NULL AND em.email_address != '')
+        AND hca.total_share_units &gt; 0
+        GROUP BY cc.id, cc.name
+    </entry>
+    <entry key="mutual.emailCount.perRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER NAME], COUNT(*) AS [EMAIL COUNTED NUMBER], SUM(mfa.units) as [HOLDING SUMMATION]
+        FROM MUTUAL_FUND_ACCOUNT mfa JOIN CLIENT_COMPANY cc
+        ON mfa.mutual_fund_id = cc.id
+        WHERE cc.id = ?
+        AND (mfa.email IS NOT NULL AND mfa.email != '')
+        AND mfa.units &gt; 0
+        GROUP BY cc.id, cc.name
+    </entry>
+    <entry key="equity.emailCount.acrossRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER], COUNT(*) AS [EMAIL COUNTED NUMBER], SUM(hca.total_share_units) as [HOLDING SUMMATION]
+        FROM Holder h join HOLDER_COMPANY_ACCOUNT hca
+        ON hca.holder_id = h.id
+        LEFT JOIN HOLDER_RESIDENTIAL_ADDRESS r
+        ON r.id = hca.pry_res_id
+        AND r.holder_id = hca.holder_id
+        RIGHT JOIN HOLDER_EMAIL_ADDRESS em
+        ON em.holder_id = h.id
+        AND em.holder_id = hca.holder_id
+        AND em.client_company_id = hca.client_Company_Id
+        JOIN CLIENT_COMPANY cc
+        ON cc.id = hca.client_Company_Id
+        AND cc.id = em.client_company_id
+        WHERE hca.client_company_id in (SELECT id FROM CLIENT_COMPANY WHERE is_mutual_fund = 0 AND is_bond = 0 AND valid = 1)
+        AND (em.email_address IS NOT NULL AND em.email_address != '')
+        AND hca.total_share_units &gt; 0
+        GROUP BY cc.id, cc.name
+        ORDER BY cc.name
+    </entry>
+    <entry key="mutual.emailCount.acrossRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER NAME], COUNT(*) AS [EMAIL COUNTED NUMBER], SUM(mfa.units) as [HOLDING SUMMATION]
+        FROM MUTUAL_FUND_ACCOUNT mfa JOIN CLIENT_COMPANY cc
+        ON mfa.mutual_fund_id = cc.id
+        WHERE cc.id in (SELECT id FROM CLIENT_COMPANY WHERE is_mutual_fund = 1 AND is_bond = 0 AND valid = 1)
+        AND (mfa.email IS NOT NULL AND mfa.email != '')
+        AND mfa.units &gt; 0
+        GROUP BY cc.id, cc.name
+        ORDER BY cc.name
+    </entry>
+    <entry key="equity.phoneList.perRegister">
+        SELECT hca.id AS [ACCOUNT NO], ISNULL(h.last_name, '') + ' '+ ISNULL(h.first_name, '') + ' '+ ISNULL(h.middle_name, '') AS [NAME], 
+        ISNULL(ph.phone_number, '') AS [PHONE NUMBER], hca.total_share_units AS [HOLDING],
+        ISNULL(r.address_line_1, '') + ' '+ ISNULL(r.address_line_2, '') + ' '+ ISNULL(r.address_line_3, '') +' '+ISNULL(r.city, '') +' '+ ISNULL(r.state, '') +' '+ ISNULL(r.country, '') AS [ADDRESS]
+        FROM Holder h join HOLDER_COMPANY_ACCOUNT hca
+        ON hca.holder_id = h.id
+        LEFT JOIN HOLDER_RESIDENTIAL_ADDRESS r
+        ON r.id = hca.pry_res_id
+        AND r.holder_id = hca.holder_id
+        RIGHT JOIN HOLDER_PHONE_NUMBER ph
+        ON ph.holder_id = h.id
+        AND ph.holder_id = hca.holder_id
+        AND ph.client_company_id = hca.client_Company_Id
+        WHERE hca.client_company_id = ?
+        AND (ph.phone_number IS NOT NULL AND ph.phone_number != '')
+        AND hca.total_share_units &gt; 0
+    </entry>
+    <entry key="mutual.phoneList.perRegister">
+        SELECT mfa.id AS [INVESTOR NO], ISNULL(mfa.last_name, '') + ' '+ ISNULL(mfa.first_name, '') + ' '+ ISNULL(mfa.middle_name, '') AS [NAME], 
+        ISNULL(mfa.email, '') AS [EMAIL], mfa.units AS [HOLDING],
+        ISNULL(mfa.address_line_1, '') + ' '+ ISNULL(mfa.address_line_2, '') + ' '+ ISNULL(mfa.address_line_3, '') +' '+ISNULL(mfa.city, '') +' '+ ISNULL(mfa.state, '') +' '+ ISNULL(mfa.country, '') AS [ADDRESS]
+        FROM MUTUAL_FUND_ACCOUNT mfa JOIN CLIENT_COMPANY cc
+        ON mfa.mutual_fund_id = cc.id
+        WHERE cc.id = ?
+        AND (mfa.phone_number IS NOT NULL AND mfa.phone_number != '')
+        AND mfa.units &gt; 0
+    </entry>
+    <entry key="equity.phoneCount.perRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER], COUNT(*) AS [PHONE COUNTED NUMBER], SUM(hca.total_share_units) as [HOLDING SUMMATION]
+        FROM Holder h join HOLDER_COMPANY_ACCOUNT hca
+        ON hca.holder_id = h.id
+        LEFT JOIN HOLDER_RESIDENTIAL_ADDRESS r
+        ON r.id = hca.pry_res_id
+        AND r.holder_id = hca.holder_id
+        RIGHT JOIN HOLDER_PHONE_NUMBER ph
+        ON ph.holder_id = h.id
+        AND ph.holder_id = hca.holder_id
+        AND ph.client_company_id = hca.client_Company_Id
+        JOIN CLIENT_COMPANY cc
+        ON cc.id = hca.client_Company_Id
+        AND cc.id = ph.client_company_id
+        WHERE hca.client_company_id = ?
+        AND (ph.phone_number IS NOT NULL AND ph.phone_number != '')
+        AND hca.total_share_units &gt; 0
+        GROUP BY cc.id, cc.name
+    </entry>
+    <entry key="mutual.phoneCount.perRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER NAME], COUNT(*) AS [PHONE COUNTED NUMBER], SUM(mfa.units) as [HOLDING SUMMATION]
+        FROM MUTUAL_FUND_ACCOUNT mfa JOIN CLIENT_COMPANY cc
+        ON mfa.mutual_fund_id = cc.id
+        WHERE cc.id = ?
+        AND (mfa.phone_number IS NOT NULL AND mfa.phone_number != '')
+        AND mfa.units &gt; 0
+        GROUP BY cc.id, cc.name
+    </entry>
+    <entry key="equity.phoneCount.acrossRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER], COUNT(*) AS [PHONE COUNTED NUMBER], SUM(hca.total_share_units) as [HOLDING SUMMATION]
+        FROM Holder h join HOLDER_COMPANY_ACCOUNT hca
+        ON hca.holder_id = h.id
+        LEFT JOIN HOLDER_RESIDENTIAL_ADDRESS r
+        ON r.id = hca.pry_res_id
+        AND r.holder_id = hca.holder_id
+        RIGHT JOIN HOLDER_PHONE_NUMBER ph
+        ON ph.holder_id = h.id
+        AND ph.holder_id = hca.holder_id
+        AND ph.client_company_id = hca.client_Company_Id
+        JOIN CLIENT_COMPANY cc
+        ON cc.id = hca.client_Company_Id
+        AND cc.id = ph.client_company_id
+        WHERE hca.client_company_id in (SELECT id FROM CLIENT_COMPANY WHERE is_mutual_fund = 0 AND is_bond = 0 AND valid = 1)
+        AND (ph.phone_number IS NOT NULL AND ph.phone_number != '')
+        AND hca.total_share_units &gt; 0
+        GROUP BY cc.id, cc.name
+        ORDER BY cc.name
+    </entry>
+    <entry key="mutual.phoneCount.acrossRegister">
+        SELECT cc.id AS [REGISTER CODE], cc.name AS [REGISTER NAME], COUNT(*) AS [PHONE COUNTED NUMBER], SUM(mfa.units) as [HOLDING SUMMATION]
+        FROM MUTUAL_FUND_ACCOUNT mfa JOIN CLIENT_COMPANY cc
+        ON mfa.mutual_fund_id = cc.id
+        WHERE cc.id in (SELECT id FROM CLIENT_COMPANY WHERE is_mutual_fund = 1 AND is_bond = 0 AND valid = 1)
+        AND (mfa.phone_number IS NOT NULL AND mfa.phone_number != '')
+        AND mfa.units &gt; 0
+        GROUP BY cc.id, cc.name
+        ORDER BY cc.name
+    </entry>
+    <entry key="equity.shareCapitalBase">
+        SELECT e.company_id AS [REGISTER CODE], cc.name AS [REGISTER NAME], SUM(e.units_buy_sell) AS [SHARE CAPITAL]
+        from EQUITY_TRANSACTION e JOIN CLIENT_COMPANY cc
+        ON e.company_id = cc.id
+        WHERE e.transaction_date &lt;= ?
+        AND e.company_id IN (SELECT id FROM CLIENT_COMPANY WHERE is_bond = 0 and is_mutual_fund = 0 and valid = 1)
+        GROUP BY e.company_id, cc.name
+        HAVING SUM(e.units_buy_sell) &gt; 0
+        ORDER BY e.company_id ASC
+    </entry>
+    <entry key="mutual.shareCapitalBase">
+        SELECT cc.id AS [REGISTER CODE], cc.name as [REGISTER NAME], SUM(units_buy_sell) AS [SHARE CAPITAL]
+        FROM MUTUAL_FUND_TRANSACTION mft JOIN CLIENT_COMPANY cc
+        ON mft.mutual_fund_id = cc.id
+        WHERE mutual_fund_id IN (Select id from CLIENT_COMPANY where is_mutual_fund = 1 AND is_bond = 0 and valid = 1)
+        and transaction_date &lt;= ?
+        GROUP BY cc.id, cc.name
+        HAVING SUM(units_buy_sell) &gt; 0
+        ORDER BY cc.id ASC
+    </entry>
+    <entry key="equity.holderTypeBase">
+        EXEC dbo.uspEquity_HolderTypeBase ?
+    </entry>
+    <entry key="mutual.holderTypeBase">
+        EXEC dbo.uspMutualFund_HolderTypeBase ?
+    </entry>
+    <entry key="equity.transaction.history">
+        SELECT ISNULL(pt.cscs_transaction_id_buy, 'N/A') as [BUYER TRANS-NO], ISNULL(pt.cscs_transaction_id_sell, 'N/A') as [SELLER TRANS-NO], 
+        ISNULL(from_holder_name, 'N/A') as [SELLER NAME], ISNULL(pt.to_holder_name, 'N/A') as [BUYER NAME], 
+        ISNULL(CAST(pt.from_comp_acct_id AS NVARCHAR(100)), 'N/A') as [SELLER ACCT-NO],
+        ISNULL(CAST(pt.to_comp_acct_id AS NVARCHAR(100)), 'N/A') as [BUYER ACCT-NO],
+        pt.sellerBalanceBefore as [SELLER BAL. BEFORE], pt.buyerBalanceBefore as [BUYER BAL. BEFORE], 
+        pt.units as [TRANSACTED UNITS], pt.sellerBalanceAfter as [SELLER BAL. AFTER], pt.buyerBalanceAfter as [BUYER BAL.AFTER], 
+        tt.type as [TRANSACTION TYPE], pt.transaction_date as [TRANSACTION DATE], pt.action_date as [ACTION DATE]
+        FROM PROCESSED_TRANSACTION pt JOIN TRANSACTION_TYPE tt
+        ON pt.transaction_type_id = tt.id
+        WHERE pt.company_id = ?
+        AND (pt.from_comp_acct_id = ? or pt.to_comp_acct_id = ?)
+        AND pt.transaction_date BETWEEN ? AND ?
+        ORDER BY pt.transaction_date DESC
+    </entry>
+    <entry key="mutual.transaction.history">
+        SELECT ma.id as [INVESTOR ACCT-NO], ISNULL(last_name, '') + ' ' + ISNULL(first_name, '') + ' ' + ISNULL(middle_name, '') as [INVESTOR NAME],
+        convert(varchar(100), pt.principal_amount_before) as [PRINCIPAL BAL. BEFORE], convert(varchar(100), pt.units_before) as [UNIT BAL. BEFORE], 
+        convert(varchar(100), pt.units_transacted) as [TRANSACTED UNITS], convert(varchar(100), pt.principal_amount_after) as [PRINCIPAL BAL. AFTER], 
+        convert(varchar(100), pt.units_after) as [UNIT BAL.AFTER], 
+        pt.unit_price AS [FUND PRICE],
+        tt.type as [TRANSACTION TYPE], pt.transaction_date as [TRANSACTION DATE], pt.action_date as [ACTION DATE]
+        FROM MUTUAL_FUND_ACCOUNT ma JOIN MUTUAL_FUND_TRANSACTION pt 
+        ON ma.id = pt.mutual_fund_acct_id
+        AND pt.mutual_fund_id = ma.mutual_fund_id
+        JOIN MUTUAL_FUND_TRANSACTION_TYPE tt
+        ON pt.transaction_type_id = tt.id
+        WHERE ma.mutual_fund_id = ?
+        AND pt.mutual_fund_acct_id = ?
+        AND pt.transaction_date BETWEEN ? AND ?
+        ORDER BY pt.transaction_date DESC
+    </entry>
+    <!--the parameters are taken in the order of clientcompany identifier, percentage value, and date-->
+    <entry key="equity.greater.percentage">
+        EXEC dbo.uspEquity_Greater_Percentage ?, ?, ?
+    </entry>
+    <entry key="mutual.greater.percentage">
+        EXEC dbo.uspMutual_Greater_Percentage ?, ?, ?
+    </entry>
+    <entry key="equity.lesser.percentage">
+        EXEC dbo.uspEquity_Lesser_Percentage ?, ?, ?
+    </entry>
+    <entry key="mutual.lesser.percentage">
+        EXEC dbo.uspMutual_Lesser_Percentage ?, ?, ?
+    </entry>
+    <entry key="equity.certificate.lodgment">
+        <!--the parameters are taken in the order of report type, clientcompany identifier, start date, and end date-->
+        EXEC dbo.uspCertificateLodgment ?, ?, ?, ?
+    </entry>
+    <entry key="equity_percentage__nodate_ers">
+        EXEC dbo.uspEquity_Percentage_With_NODATE ?
+    </entry>
+    <entry key="mutual_percentage__nodate_ers">
+        EXEC dbo.uspMutual_Percentage_With_NODATE ?
+    </entry>
+    <entry key="holder-register-summation-summary">
+        dbo.uspGetBoDHolderRegisterSummary
+    </entry>
+    <entry key="monthly-update-summary">
+        dbo.uspMonthlyBill
+    </entry>
+</properties>
